@@ -5,6 +5,8 @@ import BN from "bn.js";
 import {
   ActivatingMasterWallet,
   transformWalletStatus,
+  Wallet,
+  WalletData,
   WalletStatus,
 } from "../wallet";
 import { BlockchainType, transformBlockchainType } from "../blockchain";
@@ -24,26 +26,25 @@ import { Client } from "../httpClient";
 import BatchRequest from "./batch";
 import walletAbi from "../contracts/Wallet.json";
 import { BNConverter, checkNullAndUndefinedParameter } from "../utils/common";
-import { WalletData, Wallet } from "../wallet";
 import { makeQueryString } from "../utils/url";
 import { Coins } from "./coins";
 import {
-  TransactionDTO,
-  BatchTransactionDTO,
-  UserWalletDTO,
-  BalanceDTO,
-  MasterWalletBalanceDTO,
-  PaginationUserWalletDTO,
-  MasterWalletDTO,
-  ApproveWithdrawalApprovalRequest,
-  RejectWithdrawalApprovalRequest,
-  CreateUserWalletRequest,
-  SignedMultiSigPayloadDTO,
-  CreateMultiSigTransactionRequest,
-  ChangeWalletNameRequest,
-  ReplaceTransactionRequest,
   ActivateMasterWalletRequest,
+  ApproveWithdrawalApprovalRequest,
+  BalanceDTO,
+  BatchTransactionDTO,
+  ChangeWalletNameRequest,
+  CreateMultiSigTransactionRequest,
+  CreateUserWalletRequest,
   KeyDTO,
+  MasterWalletBalanceDTO,
+  MasterWalletDTO,
+  PaginationUserWalletDTO,
+  RejectWithdrawalApprovalRequest,
+  ReplaceTransactionRequest,
+  SignedMultiSigPayloadDTO,
+  TransactionDTO,
+  UserWalletDTO,
 } from "../__generate__/eth";
 import _ from "lodash";
 import { ValidationParameterError } from "../error";
@@ -52,6 +53,11 @@ import { Coin } from "./coin";
 import { randomBytes } from "crypto";
 import { keccak256 } from "./eth-core-lib/hash";
 import { toChecksum } from "./keychains";
+
+interface ResendTransactionRequest {
+  walletId: string;
+  transactionId: string;
+}
 
 export type EthTransaction = Omit<TransactionDTO, "blockchain"> & {
   blockchain: BlockchainType;
@@ -187,6 +193,38 @@ export abstract class EthLikeWallet extends Wallet<EthTransaction> {
     };
   }
 
+  /*
+      @Schema(required = true)
+    @JsonProperty("wallet_id")
+    private String walletId;
+    @Schema(required = true)
+    @JsonProperty("transaction_id")
+    private String transactionId;
+    @JsonProperty("gas_price")
+    @JsonSerialize(using = BigIntegerSerializer.class)
+    @JsonDeserialize(using = BigIntegerDeserializer.class)
+    private BigInteger gasPrice;
+    @JsonProperty("gas_limit")
+    @JsonSerialize(using = BigIntegerSerializer.class)
+    @JsonDeserialize(using = BigIntegerDeserializer.class)
+    private BigInteger gasLimit;
+   */
+  async resendTransaction(transactionId: string) {
+    checkNullAndUndefinedParameter({ transactionId });
+    const request: ResendTransactionRequest = {
+      walletId: this.getId(),
+      transactionId,
+    };
+    const response = await this.client.post<TransactionDTO>(
+      `/wallets/transactions/resend`,
+      request
+    );
+    return {
+      ...response,
+      blockchain: transformBlockchainType(response.blockchain),
+    };
+  }
+
   async contractCall(
     contractAddress: string,
     value: BN,
@@ -296,20 +334,6 @@ export abstract class EthLikeWallet extends Wallet<EthTransaction> {
     );
   }
 
-  protected signPayload(
-    multiSigPayload: MultiSigPayload,
-    passphrase: string
-  ): SignedMultiSigPayload {
-    return {
-      signature: this.keychains.sign(
-        this.data.accountKey,
-        passphrase,
-        formatMultiSigPayload(multiSigPayload)
-      ),
-      multiSigPayload,
-    };
-  }
-
   async sendTransaction(
     signedMultiSigPayload: SignedMultiSigPayload,
     walletId: string,
@@ -333,6 +357,24 @@ export abstract class EthLikeWallet extends Wallet<EthTransaction> {
     return {
       ...response,
       blockchain: transformBlockchainType(response.blockchain),
+    };
+  }
+
+  getNonce(): BN {
+    return BNConverter.hexStringToBN("0x" + randomBytes(32).toString("hex"));
+  }
+
+  protected signPayload(
+    multiSigPayload: MultiSigPayload,
+    passphrase: string
+  ): SignedMultiSigPayload {
+    return {
+      signature: this.keychains.sign(
+        this.data.accountKey,
+        passphrase,
+        formatMultiSigPayload(multiSigPayload)
+      ),
+      multiSigPayload,
     };
   }
 
@@ -365,10 +407,6 @@ export abstract class EthLikeWallet extends Wallet<EthTransaction> {
         blockchain: transformBlockchainType(transaction.blockchain),
       };
     });
-  }
-
-  getNonce(): BN {
-    return BNConverter.hexStringToBN("0x" + randomBytes(32).toString("hex"));
   }
 
   protected getGasLimitByTicker(coin: Coin): BN {
@@ -582,6 +620,33 @@ export class EthMasterWallet extends EthLikeWallet {
       request
     );
     this.data.name = masterWalletData.name;
+  }
+
+  async flushByBorre({
+    coin,
+    userWalletIds,
+  }: {
+    coin: string | Coin;
+    userWalletIds: string[];
+  }): Promise<TransactionDTO> {
+    const c = typeof coin === "string" ? await this.coins.getCoin(coin) : coin;
+    const userWallets: Pagination<EthUserWallet> = await this.getUserWallets({
+      ids: userWalletIds,
+      size: userWalletIds.length,
+    });
+    console.log("in flushByBorre");
+    console.log({ userWallets, userWalletIds });
+    const targets = userWallets.results.map((userWallet) => ({
+      coin_id: c.getCoinData().id,
+      deposit_address_id: userWallet.getId(),
+    }));
+
+    const request = { targets };
+    console.log(request);
+    return await this.client.post<TransactionDTO>(
+      `/wallets/${this.getId()}/flush`,
+      request
+    );
   }
 
   async flush(

@@ -1,23 +1,34 @@
 import { SDK } from "../src";
 import "dotenv/config";
 import BN from "bn.js";
+import { EthMasterWallet } from "../src/eth/wallet";
 
-async function createMasterWallets(sdk: SDK) {
-  const walletName = "borre-wallet-6";
+function createRandomName() {
+  const randomNumber = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
+  const randomStr = randomNumber.toString(16).substr(0, 16);
+  return randomStr;
+}
 
-  const wallet = await sdk.eth.wallets.createMasterWallet(
-    `${walletName}-eth`,
+async function sendTxToFail(ethMasterWallet: EthMasterWallet) {
+  const ethTx = await ethMasterWallet.transfer(
+    "ETH",
+    ethMasterWallet.getAddress(),
+    new BN(1),
     "passphrase"
   );
 
-  console.log(wallet);
+  console.log(ethTx);
+}
 
-  const wallet_klay = await sdk.klay.wallets.createMasterWallet(
-    `${walletName}-klay`,
+async function sendTxToFailKlay(klayMasterWallet: EthMasterWallet) {
+  const tx = await klayMasterWallet.transfer(
+    "KLAY",
+    klayMasterWallet.getAddress(),
+    new BN(1),
     "passphrase"
   );
 
-  console.log(wallet_klay);
+  console.log(tx);
 }
 
 async function main() {
@@ -26,8 +37,7 @@ async function main() {
     secret: process.env.SECRET,
     url: process.env.URL,
   });
-
-  //await createMasterWallets(sdk);
+  // await createMasterWallets(sdk);
 
   const ethWalletName = "borre-wallet-6-eth";
   const klayWalletName = "borre-wallet-6-klay";
@@ -37,15 +47,13 @@ async function main() {
 
   const ethMasterWallet = await sdk.eth.wallets.getMasterWallet(ethWalletId);
   const klayMasterWallet = await sdk.klay.wallets.getMasterWallet(klayWalletId);
+  await sendTxToFail(ethMasterWallet);
+  // await sendTxToFailKlay(klayMasterWallet);
 
-  const ethTx = await ethMasterWallet.transfer(
-    "ETH",
-    ethMasterWallet.getAddress(),
-    new BN(1),
-    "passphrase"
-  );
-
-  console.log(ethTx);
+  // const txId = "10c2e99e77874f08659ea24a81b21020";
+  // const txId = "cc2b1a812c3af9589b5b9628f269bbe2";
+  // const resendTx = await klayMasterWallet.resendTransaction(txId);
+  // console.log(resendTx);
 }
 
 main().catch((error) => {
@@ -66,3 +74,21 @@ main().catch((error) => {
   }
   console.log(error.config);
 });
+
+async function createMasterWallets(sdk: SDK) {
+  const walletName = "borre-wallet-6";
+
+  const wallet = await sdk.eth.wallets.createMasterWallet(
+    `${walletName}-eth`,
+    "passphrase"
+  );
+
+  console.log(wallet);
+
+  const wallet_klay = await sdk.klay.wallets.createMasterWallet(
+    `${walletName}-klay`,
+    "passphrase"
+  );
+
+  console.log(wallet_klay);
+}
