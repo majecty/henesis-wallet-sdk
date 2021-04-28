@@ -648,6 +648,12 @@ export class EthMasterWallet extends EthLikeWallet {
       request
     );
   }
+  
+  async queryFlushes(): Promise<any> {
+    return await this.client.get<any>(
+      `/wallets/${this.getId()}/flush-transactions`,
+    );
+  }
 
   async flush(
     coin: string | Coin,
