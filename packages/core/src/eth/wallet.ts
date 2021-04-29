@@ -655,6 +655,13 @@ export class EthMasterWallet extends EthLikeWallet {
     );
   }
 
+  async queryFlushes() {
+    // need pagination test
+    return await this.client.get<any>(
+      `/wallets/${this.getId()}/flush-transactions`,
+    );
+  }
+
   async flush(
     coin: string | Coin,
     userWalletIds: string[],
