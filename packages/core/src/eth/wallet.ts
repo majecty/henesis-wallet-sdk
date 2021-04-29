@@ -630,15 +630,10 @@ export class EthMasterWallet extends EthLikeWallet {
     userWalletIds: string[];
   }): Promise<TransactionDTO> {
     const c = typeof coin === "string" ? await this.coins.getCoin(coin) : coin;
-    const userWallets: Pagination<EthUserWallet> = await this.getUserWallets({
-      ids: userWalletIds,
-      size: userWalletIds.length,
-    });
     console.log("in flushByBorre");
-    console.log({ userWallets, userWalletIds });
-    const targets = userWallets.results.map((userWallet) => ({
+    const targets = userWalletIds.map((userWalletId) => ({
       coin_id: c.getCoinData().id,
-      deposit_address_id: userWallet.getId(),
+      deposit_address_id: userWalletId,
     }));
 
     const request = { targets };
