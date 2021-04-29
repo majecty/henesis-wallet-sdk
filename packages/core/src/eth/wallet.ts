@@ -650,10 +650,10 @@ export class EthMasterWallet extends EthLikeWallet {
     );
   }
 
-  async queryFlushes() {
+  async queryFlush(txId: string): Promise<any> {
     // need pagination test
     return await this.client.get<any>(
-      `/wallets/${this.getId()}/flush-transactions`,
+      `/wallets/${this.getId()}/flush-transactions/${txId}`,
     );
   }
 
